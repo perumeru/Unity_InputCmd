@@ -6,35 +6,61 @@ using System.Threading;
 //interface
 public interface KeyCodeInfo
 {
-    public KeyCode code { get; }
     float time { get; }
     public bool chacked(in float time);
+}
+//複数キー押下用(new)
+public readonly struct MulKeyDowns : KeyCodeInfo
+{
+    public readonly float time { get; }
+    public readonly KeyCode[] code { get; }
+
+    public MulKeyDowns(in float time, params KeyCode[] code)
+    {
+        this.time = time;
+        this.code = code;
+    }
+    public readonly bool allchacked()
+    {
+        for (int i = 0; i < code.Length; i++)
+        {
+            if (!Input.GetKey(code[i]))
+                return false;
+        }
+        for (int i = 0; i < code.Length; i++)
+        {
+            if (Input.GetKeyDown(code[i]))
+                return true;
+        }
+        return false;
+    }
+    public readonly bool chacked(in float time) => time < this.time && allchacked();
 }
 //キー押下用(new)
 public readonly struct KeyDowns : KeyCodeInfo
 {
-    public readonly KeyCode code { get; }
     public readonly float time { get; }
+    public readonly KeyCode code { get; }
 
-    public KeyDowns(in KeyCode code, in float time)
+    public KeyDowns(in float time, in KeyCode code)
     {
-        this.code = code;
         this.time = time;
+        this.code = code;
     }
-    public readonly bool chacked(in float time) => Input.GetKeyDown(code) && time < this.time;
+    public readonly bool chacked(in float time) => time < this.time && Input.GetKeyDown(code);
 }
 //キー離上用(new)
 public readonly struct KeyUps : KeyCodeInfo
 {
-    public readonly KeyCode code { get; }
     public readonly float time { get; }
+    public readonly KeyCode code { get; }
 
-    public KeyUps(in KeyCode code, in float time)
+    public KeyUps(in float time, in KeyCode code)
     {
-        this.code = code;
         this.time = time;
+        this.code = code;
     }
-    public readonly bool chacked(in float time) => Input.GetKeyUp(code) && time > this.time;
+    public readonly bool chacked(in float time) => time > this.time && Input.GetKeyUp(code);
 }
 public class InputCmd
 {
@@ -89,8 +115,20 @@ public class InputCmd
 
             bool reset = false;
 
+            //押下中の判定
+            if ((newkey) && keyCodeInfos[ComboCount] is MulKeyDowns)
+            {
+                if (!keyCodeInfos[ComboCount++].chacked(time))
+                {
+                    ComboCount = 0;
+                }
+                else
+                    Processing(ComboCount);
+
+                time = 0.0f;
+            }
             //押下時の判定
-            if ((!Prevkey && newkey) && keyCodeInfos[ComboCount] is KeyDowns)
+            else if ((!Prevkey && newkey) && keyCodeInfos[ComboCount] is KeyDowns)
             {
                 if (!keyCodeInfos[ComboCount++].chacked(time))
                 {
@@ -154,7 +192,7 @@ public class InputCmd
                 if (typeing.IndexOf(stringBuilder.ToString()) != 0)
                     stringBuilder.Clear();
                 //一致中
-                else if(stringBuilder.Length > 0)
+                else if (stringBuilder.Length > 0)
                     Processing(stringBuilder.ToString());
 
                 //一致したら処理
