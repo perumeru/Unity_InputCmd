@@ -107,60 +107,36 @@ public class InputCmd
 
         while (!token.IsCancellationRequested)
         {
+            bool chack = false;
+            bool Prevkey = newkey; 
+            newkey = Input.anyKey;
+            //押下中の判定
+            if (newkey && keyCodeInfos[ComboCount] is MulKeyDowns) chack = true;
+            //押下時の判定
+            else if ((!Prevkey && newkey) && keyCodeInfos[ComboCount] is KeyDowns) chack = true;
+            //離上時の判定
+            else if ((Prevkey && !newkey) && keyCodeInfos[ComboCount] is KeyUps) chack = true;
+
             //時間を進める
             time += Time.deltaTime;
-
-            bool Prevkey = newkey;
-            newkey = Input.anyKey;
-
-            bool reset = false;
-
-            //押下中の判定
-            if ((newkey) && keyCodeInfos[ComboCount] is MulKeyDowns)
-            {
-                if (!keyCodeInfos[ComboCount++].chacked(time))
-                {
-                    ComboCount = 0;
-                }
-                else
-                    Processing(ComboCount);
-
-                time = 0.0f;
-            }
-            //押下時の判定
-            else if ((!Prevkey && newkey) && keyCodeInfos[ComboCount] is KeyDowns)
-            {
-                if (!keyCodeInfos[ComboCount++].chacked(time))
-                {
-                    ComboCount = 0;
-                }
-                else
-                    Processing(ComboCount);
-
-                time = 0.0f;
-            }
-            //離上時の判定
-            else if ((Prevkey && !newkey) && keyCodeInfos[ComboCount] is KeyUps)
-            {
-                if (!keyCodeInfos[ComboCount++].chacked(time))
-                {
-                    ComboCount = 0;
-                }
-                else
-                    Processing(ComboCount);
-
-                time = 0.0f;
-            }
-
             //入力タイムアウトでリセット
-            if (!newkey && (time > timeout))
-                reset = true;
+            bool reset = !newkey && (time > timeout);
 
-            //一致したら処理でリセット
-            if (keyCodeInfos.Length == ComboCount)
+            if (chack)
             {
-                await UniTask.Run(OnComplete, false, token);
-                reset = true;
+                if (!keyCodeInfos[ComboCount++].chacked(time))
+                    ComboCount = 0;
+                else
+                    Processing(ComboCount);
+
+                time = 0.0f;
+
+                //一致したら処理でリセット
+                if (keyCodeInfos.Length == ComboCount)
+                {
+                    await UniTask.Run(OnComplete, false, token);
+                    reset = true;
+                }
             }
 
             if (reset)
@@ -179,27 +155,28 @@ public class InputCmd
         if (OnComplete == null || Processing == null)
             return;
 
-        //文字列系はメモリを消費しやすいので注意
         System.Text.StringBuilder stringBuilder = new System.Text.StringBuilder(typeing.Length);
 
         while (!token.IsCancellationRequested)
         {
-            if (Input.anyKeyDown)
+            //入力中
+            if (Input.anyKeyDown && stringBuilder.Append(Input.inputString).Length > 0)
             {
-                stringBuilder.Append(Input.inputString);
-
-                //外したらクリア(一つ戻す等に書き換えても可)
+                //不一致
                 if (typeing.IndexOf(stringBuilder.ToString()) != 0)
                     stringBuilder.Clear();
+
                 //一致中
-                else if (stringBuilder.Length > 0)
+                else if (stringBuilder.Length != typeing.Length)
                     Processing(stringBuilder.ToString());
 
-                //一致したら処理
-                if (typeing == stringBuilder.ToString())
+                //完全一致
+                else
+                {
                     await UniTask.Run(OnComplete, false, token);
+                    break;
+                }
             }
-
             //待つ
             await UniTask.Yield();
         }
